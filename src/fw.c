@@ -379,9 +379,11 @@ int fw_apply_service_allowed_insert(const Service *service, const char *source, 
     fw_build_comment_arg(comment_arg, sizeof(comment_arg), comment);
     for (size_t i = 0; i < service->ip_count; i++) {
         for (size_t j = 0; j < service->tcp_port_count; j++) {
-            int check_rc = fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p tcp -m tcp -d %s --dport %u%s -j ACCEPT",
-                                              service->chain_name, source, service->ips[i],
-                                              (unsigned) service->tcp_ports[j], comment_arg);
+            int check_rc =
+                    fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p tcp -m tcp -d %s --dport %u%s -j ACCEPT "
+                                       "2>/dev/null",
+                                       service->chain_name, source, service->ips[i],
+                                       (unsigned) service->tcp_ports[j], comment_arg);
             if (check_rc != 0) {
                 if (fw_run_command("/sbin/iptables -w -A %s -s %s -p tcp -m tcp -d %s --dport %u%s -j ACCEPT",
                                    service->chain_name, source, service->ips[i], (unsigned) service->tcp_ports[j],
@@ -392,9 +394,11 @@ int fw_apply_service_allowed_insert(const Service *service, const char *source, 
             }
         }
         for (size_t j = 0; j < service->udp_port_count; j++) {
-            int check_rc = fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p udp -m udp -d %s --dport %u%s -j ACCEPT",
-                                              service->chain_name, source, service->ips[i],
-                                              (unsigned) service->udp_ports[j], comment_arg);
+            int check_rc =
+                    fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p udp -m udp -d %s --dport %u%s -j ACCEPT "
+                                       "2>/dev/null",
+                                       service->chain_name, source, service->ips[i],
+                                       (unsigned) service->udp_ports[j], comment_arg);
             if (check_rc != 0) {
                 if (fw_run_command("/sbin/iptables -w -A %s -s %s -p udp -m udp -d %s --dport %u%s -j ACCEPT",
                                    service->chain_name, source, service->ips[i], (unsigned) service->udp_ports[j],
