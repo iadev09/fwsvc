@@ -93,18 +93,6 @@ static int restore_iptables_snapshot(const char *path) {
     return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : 1;
 }
 
-static int starts_with_word(const char *haystack, const char *needle) {
-    if (!haystack || !needle) {
-        return 0;
-    }
-
-    size_t needle_len = strlen(needle);
-    return strncmp(haystack, needle, needle_len) == 0 &&
-                           (haystack[needle_len] == '\0' || haystack[needle_len] == ' ' || haystack[needle_len] == '\n')
-                   ? 1
-                   : 0;
-}
-
 static int string_contains_word(const char *haystack, const char *needle) {
     if (!haystack || !needle) {
         return 0;
@@ -122,6 +110,19 @@ static int string_contains_word(const char *haystack, const char *needle) {
     return 0;
 }
 
+static void strip_quotes_and_newline(char *value) {
+    if (!value) {
+        return;
+    }
+
+    value[strcspn(value, "\r\n")] = '\0';
+    size_t len = strlen(value);
+    if (len >= 2 && value[0] == '"' && value[len - 1] == '"') {
+        memmove(value, value + 1, len - 2);
+        value[len - 2] = '\0';
+    }
+}
+
 static int detect_iptables_persist_path(char *path_buf, size_t path_buf_size) {
     if (!path_buf || path_buf_size == 0) {
         return 1;
@@ -133,27 +134,36 @@ static int detect_iptables_persist_path(char *path_buf, size_t path_buf_size) {
     }
 
     char line[512];
+    char id[128] = {0};
+    char id_like[256] = {0};
     int is_debian_family = 0;
     int is_rhel_family = 0;
     while (fgets(line, sizeof(line), fp)) {
-        if (starts_with_word(line, "ID=debian") || starts_with_word(line, "ID=ubuntu")) {
-            is_debian_family = 1;
+        char *eq = strchr(line, '=');
+        if (!eq) {
+            continue;
         }
-        if (starts_with_word(line, "ID=rhel") || starts_with_word(line, "ID=centos") ||
-            starts_with_word(line, "ID=rocky") || starts_with_word(line, "ID=almalinux") ||
-            starts_with_word(line, "ID=fedora")) {
-            is_rhel_family = 1;
-        }
-        if (starts_with_word(line, "ID_LIKE=")) {
-            if (string_contains_word(line, "debian")) {
-                is_debian_family = 1;
-            }
-            if (string_contains_word(line, "rhel") || string_contains_word(line, "fedora")) {
-                is_rhel_family = 1;
-            }
+        *eq = '\0';
+        char *key = line;
+        char *value = eq + 1;
+        strip_quotes_and_newline(value);
+
+        if (strcmp(key, "ID") == 0) {
+            snprintf(id, sizeof(id), "%s", value);
+        } else if (strcmp(key, "ID_LIKE") == 0) {
+            snprintf(id_like, sizeof(id_like), "%s", value);
         }
     }
     fclose(fp);
+
+    if (strcmp(id, "debian") == 0 || strcmp(id, "ubuntu") == 0 || string_contains_word(id_like, "debian")) {
+        is_debian_family = 1;
+    }
+    if (strcmp(id, "rhel") == 0 || strcmp(id, "centos") == 0 || strcmp(id, "rocky") == 0 ||
+        strcmp(id, "almalinux") == 0 || strcmp(id, "fedora") == 0 || string_contains_word(id_like, "rhel") ||
+        string_contains_word(id_like, "fedora") || string_contains_word(id_like, "centos")) {
+        is_rhel_family = 1;
+    }
 
     if (is_debian_family) {
         snprintf(path_buf, path_buf_size, "/etc/iptables/rules.v4");
