@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/file.h>
 #include <unistd.h>
+#include "event.h"
 #include "listener.h"
 #include "reload.h"
 
@@ -98,19 +99,11 @@ int main(void) {
 
     while (!g_exit) {
         bool event_received = false;
-        if (!listener) {
-            listener = listener_init(conninfo, notify_channel);
-            if (!listener) {
-                usleep(1000000);
-            }
-        } else if (listener_poll(listener, 1000, &event_received) != 0) {
-            fprintf(stderr, "Listener poll failed: %s\n", listener_last_error(listener));
-            listener_free(listener);
-            listener = nullptr;
-            usleep(1000000);
+        if (listener_wait(&listener, conninfo, notify_channel, 1000, &event_received) != 0) {
             continue;
         }
         if (event_received) {
+            fw_drain_listener_events(listener, conninfo);
             continue;
         }
 

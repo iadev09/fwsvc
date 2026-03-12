@@ -36,6 +36,9 @@ const char *db_last_error(Db *db);
 int db_fetch_services_by_scope(Db *db, ServiceScope scope, Service **out_services, size_t *out_count);
 int db_fetch_global_whitelist(Db *db, FirewallListEntry **out_list, size_t *out_count);
 int db_fetch_global_blacklist(Db *db, FirewallListEntry **out_list, size_t *out_count);
+int db_fetch_blacklist_comment(Db *db, const char *source, char **out_comment);
+int db_fetch_service_allowed_comment(Db *db, int service_id, const char *source, char **out_comment);
+int db_fetch_service_by_id(Db *db, int service_id, Service *out_service);
 int db_fetch_vpn_tunnels(Db *db, VpnTunnel **out_tunnels, size_t *out_count);
 
 

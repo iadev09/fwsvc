@@ -12,6 +12,7 @@ pkg_check_modules(LIBPQ REQUIRED IMPORTED_TARGET libpq)
 add_executable(fwsvc
   src/main.c
   src/db.c
+  src/event.c
   src/fw.c
   src/listener.c
   src/net.c

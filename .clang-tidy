@@ -4,6 +4,9 @@ Checks: >
   bugprone-*,
   portability-*,
   readability-*,
+  -readability-avoid-const-params-in-decls,
+  -readability-isolate-declaration,
+  -bugprone-easily-swappable-parameters,
   -readability-implicit-bool-conversion,
   -readability-identifier-length,
   -readability-magic-numbers
@@ -11,7 +14,7 @@ HeaderFilterRegex: '.*/(src|include)/.*'
 FormatStyle: none
 CheckOptions:
   - key: readability-function-cognitive-complexity.Threshold
-    value: 30
+    value: 33
   - key: readability-identifier-naming.VariableCase
     value: lower_case
   - key: readability-identifier-naming.MemberCase

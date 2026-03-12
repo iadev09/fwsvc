@@ -293,6 +293,42 @@ static int db_fetch_allowed_list_for_service(Db *db, int service_id, Service *se
     return 0;
 }
 
+int db_fetch_service_allowed_comment(Db *db, int service_id, const char *source, char **out_comment) {
+    if (!db || !db->conn || !source || !out_comment) {
+        return 1;
+    }
+
+    *out_comment = nullptr;
+    char idbuf[32];
+    snprintf(idbuf, sizeof(idbuf), "%d", service_id);
+    const char *params[2] = {idbuf, source};
+    const char *query =
+            "SELECT COALESCE(comment, '') "
+            "FROM firewall.service_allowed "
+            "WHERE service_id = $1 AND source = $2::cidr "
+            "ORDER BY created_at DESC, id DESC "
+            "LIMIT 1";
+    PGresult *res = PQexecParams(db->conn, query, 2, nullptr, params, nullptr, nullptr, 0);
+    if (!res) {
+        db_set_last_err(db);
+        return 1;
+    }
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        db_set_last_err(db);
+        PQclear(res);
+        return 1;
+    }
+    if (PQntuples(res) <= 0) {
+        PQclear(res);
+        return 1;
+    }
+
+    const char *commentv = PQgetvalue(res, 0, 0);
+    *out_comment = strdup(commentv ? commentv : "");
+    PQclear(res);
+    return *out_comment ? 0 : 1;
+}
+
 static int db_init_service_from_row(Service *service, ServiceScope scope, PGresult *res, int row_index, int *out_id) {
     if (!service || !res || !out_id) {
         return 1;
@@ -347,6 +383,61 @@ static int db_populate_service_relations(Db *db, int service_id, Service *servic
     if (scope == SERVICE_SCOPE_PRIVATE && db_fetch_allowed_list_for_service(db, service_id, service) != 0) {
         return 1;
     }
+
+    return 0;
+}
+
+int db_fetch_service_by_id(Db *db, int service_id, Service *out_service) {
+    if (!db || !db->conn || !out_service) {
+        return 1;
+    }
+
+    memset(out_service, 0, sizeof(*out_service));
+    char idbuf[32];
+    snprintf(idbuf, sizeof(idbuf), "%d", service_id);
+    const char *params[1] = {idbuf};
+    const char *query =
+            "SELECT id, name, logging, scope::text "
+            "FROM firewall.services "
+            "WHERE id = $1 AND enabled = true";
+    PGresult *res = PQexecParams(db->conn, query, 1, nullptr, params, nullptr, nullptr, 0);
+    if (!res) {
+        db_set_last_err(db);
+        return 1;
+    }
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        db_set_last_err(db);
+        PQclear(res);
+        return 1;
+    }
+    if (PQntuples(res) <= 0) {
+        PQclear(res);
+        return 1;
+    }
+
+    const char *scopev = PQgetvalue(res, 0, 3);
+    ServiceScope scope = strcmp(scopev ? scopev : "", "private") == 0 ? SERVICE_SCOPE_PRIVATE : SERVICE_SCOPE_PUBLIC;
+    if (db_init_service_from_row(out_service, scope, res, 0, &service_id) != 0) {
+        PQclear(res);
+        return 1;
+    }
+    PQclear(res);
+
+    if (db_populate_service_relations(db, service_id, out_service, scope) != 0) {
+        service_free(out_service);
+        memset(out_service, 0, sizeof(*out_service));
+        return 1;
+    }
+
+    const char *prefix = scope == SERVICE_SCOPE_PRIVATE ? "Private_" : "Public_";
+    size_t need = strlen(prefix) + strlen(out_service->name ? out_service->name : "") + 1;
+    out_service->chain_name = (char *) calloc(need, 1);
+    if (!out_service->chain_name) {
+        service_free(out_service);
+        memset(out_service, 0, sizeof(*out_service));
+        return 1;
+    }
+    snprintf(out_service->chain_name, need, "%s%s", prefix, out_service->name ? out_service->name : "");
 
     return 0;
 }
@@ -433,6 +524,40 @@ int db_fetch_global_blacklist(Db *db, FirewallListEntry **out_list, size_t *out_
             "WHERE kind = 'blacklist' "
             "ORDER BY created_at ASC, id ASC";
     return db_fetch_firewall_list(db, query, out_list, out_count);
+}
+
+int db_fetch_blacklist_comment(Db *db, const char *source, char **out_comment) {
+    if (!db || !db->conn || !source || !out_comment) {
+        return 1;
+    }
+
+    *out_comment = nullptr;
+    const char *query =
+            "SELECT COALESCE(comment, '') "
+            "FROM firewall.global_list_entries "
+            "WHERE kind = 'blacklist' AND source = $1::cidr "
+            "ORDER BY created_at DESC, id DESC "
+            "LIMIT 1";
+    const char *params[1] = {source};
+    PGresult *res = PQexecParams(db->conn, query, 1, nullptr, params, nullptr, nullptr, 0);
+    if (!res) {
+        db_set_last_err(db);
+        return 1;
+    }
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        db_set_last_err(db);
+        PQclear(res);
+        return 1;
+    }
+    if (PQntuples(res) <= 0) {
+        PQclear(res);
+        return 1;
+    }
+
+    const char *commentv = PQgetvalue(res, 0, 0);
+    *out_comment = strdup(commentv ? commentv : "");
+    PQclear(res);
+    return *out_comment ? 0 : 1;
 }
 
 void db_free_vpn_tunnels(VpnTunnel *tunnels, size_t count) {
