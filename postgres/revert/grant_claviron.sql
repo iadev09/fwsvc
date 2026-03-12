@@ -1,0 +1,21 @@
+-- Revert fwsvc:grant_claviron from pg
+
+BEGIN;
+
+
+SET LOCAL ROLE roman;
+
+REVOKE ALL ON SCHEMA firewall FROM claviron;
+REVOKE ALL ON ALL TABLES IN SCHEMA firewall FROM claviron;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA firewall FROM claviron;
+
+ALTER DEFAULT PRIVILEGES
+FOR ROLE roman IN SCHEMA firewall
+REVOKE ALL ON TABLES FROM claviron;
+
+ALTER DEFAULT PRIVILEGES
+FOR ROLE roman IN SCHEMA firewall
+REVOKE ALL ON SEQUENCES FROM claviron;
+
+
+COMMIT;

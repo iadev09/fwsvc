@@ -1,0 +1,21 @@
+---
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  portability-*,
+  readability-*,
+  -readability-implicit-bool-conversion,
+  -readability-identifier-length,
+  -readability-magic-numbers
+HeaderFilterRegex: '.*/(src|include)/.*'
+FormatStyle: none
+CheckOptions:
+  - key: readability-function-cognitive-complexity.Threshold
+    value: 30
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.MemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _
+...

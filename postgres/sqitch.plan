@@ -1,0 +1,7 @@
+%syntax-version=1.0.0
+%project=fwsvc
+
+init_schema 2026-02-27T23:37:05Z Developer <developer@bison> # Initial fw schema
+grant_claviron 2026-02-28T00:33:25Z Developer <developer@bison> # Grant firewall schema access to claviron
+vpn_tunnels 2026-02-28T01:18:11Z Developer <developer@bison> # Firewall VPN Tunels
+fw_notify 2026-03-12T00:00:00Z Developer <developer@bison> # Notify fwsvc on blacklist and private allowed changes

@@ -1,0 +1,18 @@
+[Unit]
+Description=fwsvc firewall service
+After=network-online.target postgresql@18-main.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=/etc/fwsvc/fwsvc.env
+ExecStart=/usr/local/bin/fwsvc
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
