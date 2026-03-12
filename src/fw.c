@@ -318,8 +318,15 @@ static int fw_add_final_drop(void) {
     return fw_run_command("/sbin/iptables -w -A INPUT -m comment --comment \"fwsvc|base|final-drop\" -j DROP");
 }
 
-static const char *fw_rule_comment(const char *db_comment, const char *fallback) {
-    return db_comment && db_comment[0] != '\0' ? db_comment : fallback;
+static void fw_build_comment_arg(char *buf, size_t buf_size, const char *db_comment) {
+    if (!buf || buf_size == 0) {
+        return;
+    }
+    if (!db_comment || db_comment[0] == '\0') {
+        buf[0] = '\0';
+        return;
+    }
+    snprintf(buf, buf_size, " -m comment --comment \"%s\"", db_comment);
 }
 
 int fw_apply_blacklist_insert(const char *source, const char *comment) {
@@ -332,8 +339,9 @@ int fw_apply_blacklist_insert(const char *source, const char *comment) {
         return 2;
     }
 
-    return fw_run_command("/sbin/iptables -w -A BlackList -s %s -m comment --comment \"%s\" -j DROP", source,
-                          fw_rule_comment(comment, "BlackList"));
+    char comment_arg[512] = {0};
+    fw_build_comment_arg(comment_arg, sizeof(comment_arg), comment);
+    return fw_run_command("/sbin/iptables -w -A BlackList -s %s%s -j DROP", source, comment_arg);
 }
 
 int fw_apply_blacklist_delete(const char *source, int *out_found) {
@@ -367,32 +375,30 @@ int fw_apply_service_allowed_insert(const Service *service, const char *source, 
     }
 
     int inserted = 0;
+    char comment_arg[512] = {0};
+    fw_build_comment_arg(comment_arg, sizeof(comment_arg), comment);
     for (size_t i = 0; i < service->ip_count; i++) {
         for (size_t j = 0; j < service->tcp_port_count; j++) {
-            int check_rc = fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p tcp -m tcp -d %s --dport %u "
-                                              "-m comment --comment \"%s\" -j ACCEPT",
+            int check_rc = fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p tcp -m tcp -d %s --dport %u%s -j ACCEPT",
                                               service->chain_name, source, service->ips[i],
-                                              (unsigned) service->tcp_ports[j], fw_rule_comment(comment, service->chain_name));
+                                              (unsigned) service->tcp_ports[j], comment_arg);
             if (check_rc != 0) {
-                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p tcp -m tcp -d %s --dport %u "
-                                   "-m comment --comment \"%s\" -j ACCEPT",
+                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p tcp -m tcp -d %s --dport %u%s -j ACCEPT",
                                    service->chain_name, source, service->ips[i], (unsigned) service->tcp_ports[j],
-                                   fw_rule_comment(comment, service->chain_name)) != 0) {
+                                   comment_arg) != 0) {
                     return 1;
                 }
                 inserted = 1;
             }
         }
         for (size_t j = 0; j < service->udp_port_count; j++) {
-            int check_rc = fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p udp -m udp -d %s --dport %u "
-                                              "-m comment --comment \"%s\" -j ACCEPT",
+            int check_rc = fw_run_command_raw("/sbin/iptables -w -C %s -s %s -p udp -m udp -d %s --dport %u%s -j ACCEPT",
                                               service->chain_name, source, service->ips[i],
-                                              (unsigned) service->udp_ports[j], fw_rule_comment(comment, service->chain_name));
+                                              (unsigned) service->udp_ports[j], comment_arg);
             if (check_rc != 0) {
-                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p udp -m udp -d %s --dport %u "
-                                   "-m comment --comment \"%s\" -j ACCEPT",
+                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p udp -m udp -d %s --dport %u%s -j ACCEPT",
                                    service->chain_name, source, service->ips[i], (unsigned) service->udp_ports[j],
-                                   fw_rule_comment(comment, service->chain_name)) != 0) {
+                                   comment_arg) != 0) {
                     return 1;
                 }
                 inserted = 1;
@@ -448,7 +454,7 @@ int fw_apply_service_allowed_delete(const Service *service, const char *source, 
 }
 
 static int fw_apply_global_chain(const char *chain_name, const char *public_if, const FirewallListEntry *entries,
-                                 size_t count, const char *target, const char *fallback_comment) {
+                                 size_t count, const char *target) {
     if (count == 0) {
         return 0;
     }
@@ -458,8 +464,10 @@ static int fw_apply_global_chain(const char *chain_name, const char *public_if, 
     }
 
     for (size_t i = 0; i < count; i++) {
-        if (fw_run_command("/sbin/iptables -w -A %s -s %s -m comment --comment \"%s\" -j %s", chain_name,
-                           entries[i].source, fw_rule_comment(entries[i].comment, fallback_comment), target) != 0) {
+        char comment_arg[512] = {0};
+        fw_build_comment_arg(comment_arg, sizeof(comment_arg), entries[i].comment);
+        if (fw_run_command("/sbin/iptables -w -A %s -s %s%s -j %s", chain_name, entries[i].source, comment_arg,
+                           target) != 0) {
             return 1;
         }
     }
@@ -634,20 +642,20 @@ static int fw_apply_private_service(const Service *service) {
     for (size_t i = 0; i < service->ip_count; i++) {
         for (size_t k = 0; k < service->allowed_count; k++) {
             for (size_t j = 0; j < service->tcp_port_count; j++) {
-                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p tcp -m tcp -d %s --dport %u "
-                                   "-m comment --comment \"%s\" -j ACCEPT",
+                char comment_arg[512] = {0};
+                fw_build_comment_arg(comment_arg, sizeof(comment_arg), service->allowed_comments[k]);
+                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p tcp -m tcp -d %s --dport %u%s -j ACCEPT",
                                    service->chain_name, service->allowed_sources[k], service->ips[i],
-                                   (unsigned) service->tcp_ports[j],
-                                   fw_rule_comment(service->allowed_comments[k], service->chain_name)) != 0) {
+                                   (unsigned) service->tcp_ports[j], comment_arg) != 0) {
                     return 1;
                 }
             }
             for (size_t j = 0; j < service->udp_port_count; j++) {
-                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p udp -m udp -d %s --dport %u "
-                                   "-m comment --comment \"%s\" -j ACCEPT",
+                char comment_arg[512] = {0};
+                fw_build_comment_arg(comment_arg, sizeof(comment_arg), service->allowed_comments[k]);
+                if (fw_run_command("/sbin/iptables -w -A %s -s %s -p udp -m udp -d %s --dport %u%s -j ACCEPT",
                                    service->chain_name, service->allowed_sources[k], service->ips[i],
-                                   (unsigned) service->udp_ports[j],
-                                   fw_rule_comment(service->allowed_comments[k], service->chain_name)) != 0) {
+                                   (unsigned) service->udp_ports[j], comment_arg) != 0) {
                     return 1;
                 }
             }
@@ -735,8 +743,8 @@ int fw_apply(Fw *fw) {
 
     if (fw_reset_filter_table() != 0 || fw_reset_nat_table() != 0 || fw_add_loopback_accept() != 0 ||
         fw_add_established_accept() != 0 ||
-        fw_apply_global_chain("WhiteList", fw->public_if, whitelist, whitelist_count, "ACCEPT", "WhiteList") != 0 ||
-        fw_apply_global_chain("BlackList", fw->public_if, blacklist, blacklist_count, "DROP", "BlackList") != 0) {
+        fw_apply_global_chain("WhiteList", fw->public_if, whitelist, whitelist_count, "ACCEPT") != 0 ||
+        fw_apply_global_chain("BlackList", fw->public_if, blacklist, blacklist_count, "DROP") != 0) {
         db_free_firewall_list(whitelist, whitelist_count);
         db_free_firewall_list(blacklist, blacklist_count);
         db_free_vpn_tunnels(vpn_tunnels, vpn_tunnel_count);
