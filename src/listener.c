@@ -197,7 +197,6 @@ int listener_poll(Listener *listener, int timeout_ms, bool *out_event_received) 
     }
 
     PGnotify *notify = nullptr;
-    bool event_received = false;
     while ((notify = PQnotifies(listener->conn)) != nullptr) {
         printf("fwsvc: notify channel=%s payload=%s\n", notify->relname, notify->extra ? notify->extra : "");
         fflush(stdout);
@@ -206,12 +205,7 @@ int listener_poll(Listener *listener, int timeout_ms, bool *out_event_received) 
             return 1;
         }
         *out_event_received = true;
-        event_received = true;
         PQfreemem(notify);
-    }
-    if (event_received) {
-        printf("fwsvc: notify poll ok\n");
-        fflush(stdout);
     }
 
     return 0;
