@@ -2,7 +2,8 @@
 
 BEGIN;
 
-SELECT pg_get_functiondef('firewall.notify_fwsvc_events()'::regprocedure);
+SELECT pg_get_functiondef('firewall.notify_fwsvc_service_allowed()'::regprocedure);
+SELECT pg_get_functiondef('firewall.notify_fwsvc_global_blacklist()'::regprocedure);
 SELECT pg_get_functiondef('firewall.reject_fwsvc_event_updates()'::regprocedure);
 SELECT 1
 FROM pg_trigger
