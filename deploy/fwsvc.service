@@ -8,6 +8,9 @@ Type=simple
 User=root
 Group=root
 EnvironmentFile=/etc/fwsvc/fwsvc.env
+RuntimeDirectory=fwsvc
+RuntimeDirectoryMode=0755
+
 ExecStart=/usr/local/bin/fwsvc
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure

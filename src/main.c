@@ -39,11 +39,11 @@ static void handle_signal(int sig) {
 
 static int acquire_single_instance_lock(void) {
     const char *lock_path = "/tmp/fwsvc.lock";
-    const char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
-    if (xdg_runtime_dir && xdg_runtime_dir[0] != '\0') {
-        /* XDG_RUNTIME_DIR is expected to be an absolute path. */
+    const char *runtime_dir = getenv("RUNTIME_DIRECTORY");
+    if (runtime_dir && runtime_dir[0] != '\0') {
+        /* RUNTIME_DIRECTORY is expected to be an absolute path for systemd services. */
         static char path_buf[512];
-        if (snprintf(path_buf, sizeof(path_buf), "%s/%s", xdg_runtime_dir, "fwsvc.lock") > 0) {
+        if (snprintf(path_buf, sizeof(path_buf), "%s/%s", runtime_dir, "fwsvc.lock") > 0) {
             lock_path = path_buf;
         }
     }
